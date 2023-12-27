@@ -1,6 +1,6 @@
 # CloudTrail Indicators Of Compromise Searcher
 
-This is a work in progress of a CloudTrail IOC searcher. It looks for a few IOCs such as **CreateKeyPair**, **CreateSecurityGroup**, **RunInstances** and **StartInstances**. It provides the *file* where the event is located as well as some of the *elements*. The file location will provide other items such as **sourceIPAddress** and **userAgent**.
+This is a work in progress of a CloudTrail IOC searcher. It looks for a few IOCs such as **CreateKeyPair**, **CreateSecurityGroup**, **RunInstances** and **StartInstances**. It provides the *file* where the event is located as well as some of the *elements*. It will also list the **User-Agents** and **Source IP Addresses** found in descending order.
 
 ## Getting Started
 
@@ -9,6 +9,16 @@ This is a work in progress of a CloudTrail IOC searcher. It looks for a few IOCs
 * With python3
 ```
 python3 cloudtrail.py -f CloudTrail/
+```
+
+* Search for User-Agent strings
+```
+python3 cloudtrail.py -f CloudTrail/ -ua 'aws-cli'
+```
+
+* Search for Source IP strings
+```
+python3 cloudtrail.py -f CloudTrail/ -ip '127.0.0.1'
 ```
 
 ## Help
