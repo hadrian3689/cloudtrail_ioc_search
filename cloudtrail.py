@@ -2,7 +2,7 @@ import glob
 import json
 import argparse
 
-def print_request_parameters(json_data, file_path, user_agent_filter=None, source_ip_filter=None):
+def print_create_key_pair(json_data, file_path, user_agent_filter=None, source_ip_filter=None):
     event_name = json_data.get("eventName")
     
     if user_agent_filter and user_agent_filter not in str(json_data.get("userAgent", "")):
@@ -22,14 +22,47 @@ def print_request_parameters(json_data, file_path, user_agent_filter=None, sourc
 
     for key, value in json_data.items():
         if isinstance(value, dict):
-            print_request_parameters(value, file_path, user_agent_filter, source_ip_filter)
+            print_create_key_pair(value, file_path, user_agent_filter, source_ip_filter)
         elif isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
-                    print_request_parameters(item, file_path, user_agent_filter, source_ip_filter)
+                    print_create_key_pair(item, file_path, user_agent_filter, source_ip_filter)
 
-def print_security_groups(json_data, file_path):
+def print_put_user_policy(json_data, file_path, user_agent_filter=None, source_ip_filter=None):
     event_name = json_data.get("eventName")
+    
+    if user_agent_filter and user_agent_filter not in str(json_data.get("userAgent", "")):
+        return
+
+    if source_ip_filter and source_ip_filter not in str(json_data.get("sourceIPAddress", "")):
+        return
+    
+    if event_name == "PutUserPolicy":
+        request_parameters = json_data.get("requestParameters")
+        response_elements = json_data.get("responseElements")
+        if request_parameters and isinstance(request_parameters, dict):
+            print(f"Found '\033[92mPutUserPolicy\x1b[0m' in {file_path}\n")
+            print(f"Request parameters: {request_parameters}\n")
+            print(f"Response elements {response_elements}") 
+            print("\n" + '\033[31m' + "*"*100 + '\x1b[0m' + "\n")
+
+    for key, value in json_data.items():
+        if isinstance(value, dict):
+            print_put_user_policy(value, file_path, user_agent_filter, source_ip_filter)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    print_put_user_policy(item, file_path, user_agent_filter, source_ip_filter)
+
+def print_security_groups(json_data, file_path, user_agent_filter=None, source_ip_filter=None):
+    event_name = json_data.get("eventName")
+    
+    if user_agent_filter and user_agent_filter not in str(json_data.get("userAgent", "")):
+        return
+
+    if source_ip_filter and source_ip_filter not in str(json_data.get("sourceIPAddress", "")):
+        return
+    
     if event_name == "CreateSecurityGroup":
         request_parameters = json_data.get("requestParameters")
         if request_parameters and isinstance(request_parameters, dict):
@@ -39,14 +72,21 @@ def print_security_groups(json_data, file_path):
 
     for key, value in json_data.items():
         if isinstance(value, dict):
-            print_security_groups(value, file_path)
+            print_security_groups(value, file_path, user_agent_filter, source_ip_filter)
         elif isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
-                    print_security_groups(item, file_path)
+                    print_security_groups(item, file_path, user_agent_filter, source_ip_filter)
 
-def print_running_instances(json_data, file_path):
+def print_running_instances(json_data, file_path, user_agent_filter=None, source_ip_filter=None):
     event_name = json_data.get("eventName")
+    
+    if user_agent_filter and user_agent_filter not in str(json_data.get("userAgent", "")):
+        return
+
+    if source_ip_filter and source_ip_filter not in str(json_data.get("sourceIPAddress", "")):
+        return
+    
     if event_name == "RunInstances" or event_name == "StartInstances":
         request_parameters = json_data.get("requestParameters")
         if request_parameters and isinstance(request_parameters, dict):
@@ -56,11 +96,48 @@ def print_running_instances(json_data, file_path):
 
     for key, value in json_data.items():
         if isinstance(value, dict):
-            print_running_instances(value, file_path)
+            print_running_instances(value, file_path, user_agent_filter, source_ip_filter)
         elif isinstance(value, list):
             for item in value:
                 if isinstance(item, dict):
-                    print_running_instances(item, file_path)
+                    print_running_instances(item, file_path, user_agent_filter, source_ip_filter)
+
+def search_anonymous_users(json_data, file_path, anonymous_counts, user_agent_filter=None, source_ip_filter=None):
+    user_identity = json_data.get("userIdentity")
+    
+    if user_agent_filter and user_agent_filter not in str(json_data.get("userAgent", "")):
+        return
+
+    if source_ip_filter and source_ip_filter not in str(json_data.get("sourceIPAddress", "")):
+        return
+    
+    if user_identity and user_identity.get("type") == "AWSAccount" and user_identity.get("accountId") == "anonymous":
+        if file_path in anonymous_counts:
+            anonymous_counts[file_path] += 1
+        else:
+            anonymous_counts[file_path] = 1
+
+    for key, value in json_data.items():
+        if isinstance(value, dict):
+            search_anonymous_users(value, file_path, anonymous_counts)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    search_anonymous_users(item, file_path, anonymous_counts)
+
+def search_files_for_anonymous(json_files, user_agent_filter=None, source_ip_filter=None):
+    anonymous_counts = {}
+    for file_path in json_files:
+        with open(file_path, 'r') as file:
+            try:
+                json_data = json.load(file)
+                search_anonymous_users(json_data, file_path, anonymous_counts)
+            except json.JSONDecodeError:
+                print(f"Error decoding JSON in file: {file_path}")
+
+    print("Counts of '\033[92manonymous\x1b[0m' Account ID instances in each file:\n")
+    for file_path, count in anonymous_counts.items():
+        print(f"{file_path}: {count}")
 
 def count_source_ip_addresses(json_data, file_path, ip_address_counts):
     source_ip_address = json_data.get("sourceIPAddress")
@@ -97,18 +174,22 @@ def count_user_agents(json_data, file_path, user_agent_counts):
 def search_files(directory_path, file_pattern, json_files, user_agent_filter=None, source_ip_filter=None):
     ip_address_counts = {}
     user_agent_counts = {}
-    
+
     for file_path in json_files:
         with open(file_path, 'r') as file:
             try:
                 json_data = json.load(file)
-                print_request_parameters(json_data, file_path, user_agent_filter, source_ip_filter)
-                print_security_groups(json_data, file_path)
-                print_running_instances(json_data, file_path)
+                print_create_key_pair(json_data, file_path, user_agent_filter, source_ip_filter)
+                print_put_user_policy(json_data, file_path, user_agent_filter, source_ip_filter)
+                print_security_groups(json_data, file_path, user_agent_filter, source_ip_filter)
+                print_running_instances(json_data, file_path, user_agent_filter, source_ip_filter)
                 count_source_ip_addresses(json_data, file_path, ip_address_counts)
                 count_user_agents(json_data, file_path, user_agent_counts)
             except json.JSONDecodeError:
                 print(f"Error decoding JSON in file: {file_path}")
+    
+    search_files_for_anonymous(json_files, user_agent_filter, source_ip_filter)
+    print('\n\033[31m' + '*'*100 + '\x1b[0m\n')
 
     if not user_agent_filter:
         sorted_ip_counts = sorted(ip_address_counts.items(), key=lambda x: x[1], reverse=True)
